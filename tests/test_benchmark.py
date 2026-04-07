@@ -5,7 +5,7 @@ import pytest
 import networkx as nx
 from networkx.readwrite import json_graph
 
-from graphify.benchmark import run_benchmark, print_benchmark, _query_subgraph_tokens, _SAMPLE_QUESTIONS
+from graphify.benchmark import run_benchmark, print_benchmark, _query_subgraph_tokens, _query_subgraph_tokens_semantic, _SAMPLE_QUESTIONS
 
 
 def _make_graph() -> nx.Graph:
@@ -45,6 +45,12 @@ def test_query_bfs_expands_neighbors():
     tokens_deep = _query_subgraph_tokens(G, "authentication", depth=3)
     tokens_shallow = _query_subgraph_tokens(G, "authentication", depth=1)
     assert tokens_deep >= tokens_shallow
+
+def test_query_semantic_returns_zero_without_index(tmp_path):
+    G = _make_graph()
+    graph_file = tmp_path / "graph.json"
+    _write_graph(G, graph_file)
+    assert _query_subgraph_tokens_semantic(str(graph_file), "xyzzy plugh zorkmid") == 0
 
 
 # --- run_benchmark ---

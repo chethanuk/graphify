@@ -7,6 +7,7 @@ from networkx.readwrite import json_graph
 from graphify.serve import (
     _communities_from_graph,
     _score_nodes,
+    _hybrid_seed_nodes,
     _bfs,
     _dfs,
     _subgraph_to_text,
@@ -71,6 +72,14 @@ def test_score_nodes_source_file_partial():
     scored = _score_nodes(G, ["cluster"])
     nids = [nid for _, nid in scored]
     assert "n2" in nids
+
+def test_hybrid_seed_nodes_keyword_only(tmp_path):
+    G = _make_graph()
+    graph_file = tmp_path / "graph.json"
+    graph_file.write_text(json.dumps(json_graph.node_link_data(G, edges="links")))
+    seeds = _hybrid_seed_nodes(G, str(graph_file), "extract")
+    assert seeds[0]["source"] == "keyword"
+    assert seeds[0]["id"] == "n1"
 
 
 # --- _bfs ---
