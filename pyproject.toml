@@ -4,14 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "graphifyy"
-version = "0.3.21"
-description = "AI coding assistant skill (Claude Code, Codex, OpenCode, OpenClaw) - turn any folder of code, docs, papers, or images into a queryable knowledge graph"
+version = "0.3.24"
+description = "AI coding assistant skill (Claude Code, Codex, OpenCode, Cursor, OpenClaw, Factory Droid, Trae) - turn any folder of code, docs, papers, or images into a queryable knowledge graph"
 readme = "README.md"
 license = { file = "LICENSE" }
-keywords = ["claude", "claude-code", "codex", "opencode", "knowledge-graph", "rag", "graphrag", "obsidian", "community-detection", "tree-sitter", "leiden", "llm"]
+keywords = ["claude", "claude-code", "codex", "opencode", "cursor", "knowledge-graph", "rag", "graphrag", "obsidian", "community-detection", "tree-sitter", "leiden", "llm"]
 requires-python = ">=3.10"
 dependencies = [
     "networkx",
+    "numpy",
     "tree-sitter>=0.23.0",
     "tree-sitter-python",
     "tree-sitter-javascript",
@@ -47,7 +48,8 @@ pdf = ["pypdf", "html2text"]
 watch = ["watchdog"]
 leiden = ["graspologic"]
 office = ["python-docx", "openpyxl"]
-all = ["mcp", "neo4j", "pypdf", "html2text", "watchdog", "graspologic", "python-docx", "openpyxl"]
+embeddings = ["sentence-transformers"]
+all = ["mcp", "neo4j", "pypdf", "html2text", "watchdog", "graspologic", "python-docx", "openpyxl", "sentence-transformers"]
 
 [project.scripts]
 graphify = "graphify.__main__:main"
