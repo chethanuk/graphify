@@ -15,6 +15,15 @@ def test_classify_markdown():
 def test_classify_pdf():
     assert classify_file(Path("paper.pdf")) == FileType.PAPER
 
+def test_classify_pdf_in_xcassets_skipped():
+    # PDFs inside Xcode asset catalogs are vector icons, not papers
+    asset_pdf = Path("MyApp/Images.xcassets/icon.imageset/icon.pdf")
+    assert classify_file(asset_pdf) is None
+
+def test_classify_pdf_in_xcassets_root_skipped():
+    asset_pdf = Path("Pods/HXPHPicker/Assets.xcassets/photo.pdf")
+    assert classify_file(asset_pdf) is None
+
 def test_classify_unknown_returns_none():
     assert classify_file(Path("archive.zip")) is None
 
@@ -103,3 +112,37 @@ def test_graphifyignore_comments_ignored(tmp_path):
     result = detect(tmp_path)
     assert not any("main.py" in f for f in result["files"]["code"])
     assert any("other.py" in f for f in result["files"]["code"])
+
+
+def test_detect_follows_symlinked_directory(tmp_path):
+    real_dir = tmp_path / "real_lib"
+    real_dir.mkdir()
+    (real_dir / "util.py").write_text("x = 1")
+    (tmp_path / "linked_lib").symlink_to(real_dir)
+
+    result_no = detect(tmp_path, follow_symlinks=False)
+    result_yes = detect(tmp_path, follow_symlinks=True)
+
+    assert any("real_lib" in f for f in result_no["files"]["code"])
+    assert not any("linked_lib" in f for f in result_no["files"]["code"])
+    assert any("linked_lib" in f for f in result_yes["files"]["code"])
+
+
+def test_detect_follows_symlinked_file(tmp_path):
+    (tmp_path / "real.py").write_text("x = 1")
+    (tmp_path / "link.py").symlink_to(tmp_path / "real.py")
+
+    result = detect(tmp_path, follow_symlinks=True)
+    code = result["files"]["code"]
+    assert any("real.py" in f for f in code)
+    assert any("link.py" in f for f in code)
+
+
+def test_detect_handles_circular_symlinks(tmp_path):
+    sub = tmp_path / "a"
+    sub.mkdir()
+    (sub / "main.py").write_text("x = 1")
+    (sub / "loop").symlink_to(tmp_path)
+
+    result = detect(tmp_path, follow_symlinks=True)
+    assert any("main.py" in f for f in result["files"]["code"])

@@ -421,6 +421,8 @@ Replace INPUT_PATH with the actual path.
 
 If `--obsidian` was given:
 
+- If `--obsidian-dir <path>` was also given, use that path as the vault directory. Otherwise default to `graphify-out/obsidian`.
+
 ```powershell
 python -c "
 import sys, json
@@ -437,13 +439,15 @@ communities = {int(k): v for k, v in analysis['communities'].items()}
 cohesion = {int(k): v for k, v in analysis['cohesion'].items()}
 labels = {int(k): v for k, v in labels_raw.items()}
 
-n = to_obsidian(G, communities, 'graphify-out/obsidian', community_labels=labels or None, cohesion=cohesion)
-print(f'Obsidian vault: {n} notes in graphify-out/obsidian/')
+obsidian_dir = 'OBSIDIAN_DIR'  # replace with --obsidian-dir value, or 'graphify-out/obsidian' if not given
 
-to_canvas(G, communities, 'graphify-out/obsidian/graph.canvas', community_labels=labels or None)
-print('Canvas: graphify-out/obsidian/graph.canvas - open in Obsidian for structured community layout')
+n = to_obsidian(G, communities, obsidian_dir, community_labels=labels or None, cohesion=cohesion)
+print(f'Obsidian vault: {n} notes in {obsidian_dir}/')
+
+to_canvas(G, communities, f'{obsidian_dir}/graph.canvas', community_labels=labels or None)
+print(f'Canvas: {obsidian_dir}/graph.canvas - open in Obsidian for structured community layout')
 print()
-print('Open graphify-out/obsidian/ as a vault in Obsidian.')
+print(f'Open {obsidian_dir}/ as a vault in Obsidian.')
 print('  Graph view   - nodes colored by community (set automatically)')
 print('  graph.canvas - structured layout with communities as groups')
 print('  _COMMUNITY_* - overview notes with cohesion scores and dataview queries')
@@ -633,7 +637,7 @@ cost_path.write_text(json.dumps(cost, indent=2))
 print(f'This run: {input_tok:,} input tokens, {output_tok:,} output tokens')
 print(f'All time: {cost[\"total_input_tokens\"]:,} input, {cost[\"total_output_tokens\"]:,} output ({len(cost[\"runs\"])} runs)')
 "
-Remove-Item -ErrorAction SilentlyContinue .graphify_detect.json, .graphify_extract.json, .graphify_ast.json, .graphify_semantic.json, .graphify_analysis.json, .graphify_labels.json, .graphify_python
+Remove-Item -ErrorAction SilentlyContinue .graphify_detect.json, .graphify_extract.json, .graphify_ast.json, .graphify_semantic.json, .graphify_analysis.json, .graphify_labels.json
 Remove-Item -ErrorAction SilentlyContinue graphify-out/.needs_update
 ```
 
@@ -933,18 +937,7 @@ Replace `QUESTION` with the user's actual question, `MODE` with `bfs` or `dfs`, 
 After writing the answer, save it back into the graph so it improves future queries:
 
 ```powershell
-python -c "
-from graphify.ingest import save_query_result
-from pathlib import Path
-save_query_result(
-    question='QUESTION',
-    answer='ANSWER',
-    memory_dir=Path('graphify-out/memory'),
-    query_type='query',
-    source_nodes=SOURCE_NODES,  # list of node labels cited, or []
-)
-print('Query result saved to graphify-out/memory/')
-"
+python -m graphify save-result --question "QUESTION" --answer "ANSWER" --type query --nodes NODE1 NODE2
 ```
 
 Replace `QUESTION` with the question, `ANSWER` with your full answer text, `SOURCE_NODES` with the list of node labels you cited. This closes the feedback loop: the next `--update` will extract this Q&A as a node in the graph.
@@ -1019,18 +1012,7 @@ Replace `NODE_A` and `NODE_B` with the actual concept names from the user. Then 
 After writing the explanation, save it back:
 
 ```powershell
-python -c "
-from graphify.ingest import save_query_result
-from pathlib import Path
-save_query_result(
-    question='Path from NODE_A to NODE_B',
-    answer='ANSWER',
-    memory_dir=Path('graphify-out/memory'),
-    query_type='path_query',
-    source_nodes=PATH_NODES,  # list of node labels on the path
-)
-print('Path result saved to graphify-out/memory/')
-"
+python -m graphify save-result --question "Path from NODE_A to NODE_B" --answer "ANSWER" --type path_query --nodes NODE_A NODE_B
 ```
 
 ---
@@ -1096,18 +1078,7 @@ Replace `NODE_NAME` with the concept the user asked about. Then write a 3-5 sent
 After writing the explanation, save it back:
 
 ```powershell
-python -c "
-from graphify.ingest import save_query_result
-from pathlib import Path
-save_query_result(
-    question='Explain NODE_NAME',
-    answer='ANSWER',
-    memory_dir=Path('graphify-out/memory'),
-    query_type='explain',
-    source_nodes=['NODE_NAME'],
-)
-print('Explanation saved to graphify-out/memory/')
-"
+python -m graphify save-result --question "Explain NODE_NAME" --answer "ANSWER" --type explain --nodes NODE_NAME
 ```
 
 ---
@@ -1195,6 +1166,19 @@ This writes a `## graphify` section to the local `CLAUDE.md` that instructs Clau
 ```bash
 graphify claude uninstall  # remove the section
 ```
+
+---
+
+## Troubleshooting
+
+### PowerShell 5.1: Vertical scrolling stops working
+
+If vertical scrolling breaks in PowerShell after running graphify, this is caused by ANSI escape sequences from the `graspologic` library. Graphify v0.3.10+ suppresses this output, but if you still see the issue:
+
+1. **Upgrade graphify**: `pip install --upgrade graphifyy`
+2. **Use Windows Terminal** instead of the legacy PowerShell console — Windows Terminal handles ANSI codes correctly
+3. **Reset your terminal**: close and reopen PowerShell
+4. **Skip graspologic**: uninstall it (`pip uninstall graspologic`) and graphify will fall back to NetworkX's built-in Louvain algorithm, which produces no ANSI output
 
 ---
 

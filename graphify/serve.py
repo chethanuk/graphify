@@ -13,7 +13,10 @@ def _load_graph(graph_path: str) -> nx.Graph:
     try:
         safe = validate_graph_path(graph_path)
         data = json.loads(safe.read_text())
-        return json_graph.node_link_graph(data, edges="links")
+        try:
+            return json_graph.node_link_graph(data, edges="links")
+        except TypeError:
+            return json_graph.node_link_graph(data)
     except (ValueError, FileNotFoundError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -68,7 +71,10 @@ def _hybrid_seed_nodes(
 
     index = load_semantic_index(graph_path)
     if index is not None:
-        semantic_ranked = [(float(match["score"]), match["id"]) for match in semantic_search(graph_path, question, top_k=semantic_limit)]
+        try:
+            semantic_ranked = [(float(match["score"]), match["id"]) for match in semantic_search(graph_path, question, top_k=semantic_limit)]
+        except Exception:
+            semantic_ranked = []
         if semantic_ranked:
             rankings.append(("semantic", semantic_ranked))
 

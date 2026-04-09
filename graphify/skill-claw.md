@@ -62,12 +62,16 @@ Follow these steps in order. Do not skip steps.
 GRAPHIFY_BIN=$(which graphify 2>/dev/null)
 if [ -n "$GRAPHIFY_BIN" ]; then
     PYTHON=$(head -1 "$GRAPHIFY_BIN" | tr -d '#!')
+    case "$PYTHON" in
+        *[!a-zA-Z0-9/_.-]*) PYTHON="python3" ;;
+    esac
 else
     PYTHON="python3"
 fi
-$PYTHON -c "import graphify" 2>/dev/null || pip install graphifyy -q --break-system-packages 2>&1 | tail -3
+"$PYTHON" -c "import graphify" 2>/dev/null || "$PYTHON" -m pip install graphifyy -q 2>/dev/null || "$PYTHON" -m pip install graphifyy -q --break-system-packages 2>&1 | tail -3
+mkdir -p graphify-out
 # Write interpreter path for all subsequent steps
-$PYTHON -c "import sys; open('.graphify_python', 'w').write(sys.executable)"
+"$PYTHON" -c "import sys; open('graphify-out/.graphify_python', 'w').write(sys.executable)"
 ```
 
 If the import succeeds, print nothing and move straight to Step 2.
@@ -172,7 +176,7 @@ Only dispatch subagents for files listed in `.graphify_uncached.txt`. If all fil
 
 **Step B1 - Split into chunks**
 
-Load files from `.graphify_uncached.txt`.
+Load files from `.graphify_uncached.txt`. Split into chunks of 20-25 files each. Each image gets its own chunk (vision needs separate context). When splitting, group files from the same directory together so related artifacts land in the same chunk and cross-file relationships are more likely to be extracted.
 
 **Step B2 - Sequential extraction (OpenClaw)**
 
@@ -590,7 +594,7 @@ cost_path.write_text(json.dumps(cost, indent=2))
 print(f'This run: {input_tok:,} input tokens, {output_tok:,} output tokens')
 print(f'All time: {cost[\"total_input_tokens\"]:,} input, {cost[\"total_output_tokens\"]:,} output ({len(cost[\"runs\"])} runs)')
 "
-rm -f .graphify_detect.json .graphify_extract.json .graphify_ast.json .graphify_semantic.json .graphify_analysis.json .graphify_labels.json .graphify_python
+rm -f .graphify_detect.json .graphify_extract.json .graphify_ast.json .graphify_semantic.json .graphify_analysis.json .graphify_labels.json
 rm -f graphify-out/.needs_update 2>/dev/null || true
 ```
 
@@ -890,18 +894,7 @@ Replace `QUESTION` with the user's actual question, `MODE` with `bfs` or `dfs`, 
 After writing the answer, save it back into the graph so it improves future queries:
 
 ```bash
-$(cat .graphify_python) -c "
-from graphify.ingest import save_query_result
-from pathlib import Path
-save_query_result(
-    question='QUESTION',
-    answer='ANSWER',
-    memory_dir=Path('graphify-out/memory'),
-    query_type='query',
-    source_nodes=SOURCE_NODES,  # list of node labels cited, or []
-)
-print('Query result saved to graphify-out/memory/')
-"
+$(cat .graphify_python) -m graphify save-result --question "QUESTION" --answer "ANSWER" --type query --nodes NODE1 NODE2
 ```
 
 Replace `QUESTION` with the question, `ANSWER` with your full answer text, `SOURCE_NODES` with the list of node labels you cited. This closes the feedback loop: the next `--update` will extract this Q&A as a node in the graph.
@@ -976,18 +969,7 @@ Replace `NODE_A` and `NODE_B` with the actual concept names from the user. Then 
 After writing the explanation, save it back:
 
 ```bash
-$(cat .graphify_python) -c "
-from graphify.ingest import save_query_result
-from pathlib import Path
-save_query_result(
-    question='Path from NODE_A to NODE_B',
-    answer='ANSWER',
-    memory_dir=Path('graphify-out/memory'),
-    query_type='path_query',
-    source_nodes=PATH_NODES,  # list of node labels on the path
-)
-print('Path result saved to graphify-out/memory/')
-"
+$(cat .graphify_python) -m graphify save-result --question "Path from NODE_A to NODE_B" --answer "ANSWER" --type path_query --nodes NODE_A NODE_B
 ```
 
 ---
@@ -1053,18 +1035,7 @@ Replace `NODE_NAME` with the concept the user asked about. Then write a 3-5 sent
 After writing the explanation, save it back:
 
 ```bash
-$(cat .graphify_python) -c "
-from graphify.ingest import save_query_result
-from pathlib import Path
-save_query_result(
-    question='Explain NODE_NAME',
-    answer='ANSWER',
-    memory_dir=Path('graphify-out/memory'),
-    query_type='explain',
-    source_nodes=['NODE_NAME'],
-)
-print('Explanation saved to graphify-out/memory/')
-"
+$(cat .graphify_python) -m graphify save-result --question "Explain NODE_NAME" --answer "ANSWER" --type explain --nodes NODE_NAME
 ```
 
 ---

@@ -17,7 +17,7 @@ class FileType(str, Enum):
 
 _MANIFEST_PATH = "graphify-out/manifest.json"
 
-CODE_EXTENSIONS = {'.py', '.ts', '.js', '.tsx', '.go', '.rs', '.java', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp', '.rb', '.swift', '.kt', '.kts', '.cs', '.scala', '.php', '.lua', '.toc', '.zig', '.ps1', '.ex', '.exs'}
+CODE_EXTENSIONS = {'.py', '.ts', '.js', '.jsx', '.tsx', '.go', '.rs', '.java', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp', '.rb', '.swift', '.kt', '.kts', '.cs', '.scala', '.php', '.lua', '.toc', '.zig', '.ps1', '.ex', '.exs', '.m', '.mm', '.jl'}
 DOC_EXTENSIONS = {'.md', '.txt', '.rst'}
 PAPER_EXTENSIONS = {'.pdf'}
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'}
@@ -74,11 +74,17 @@ def _looks_like_paper(path: Path) -> bool:
         return False
 
 
+_ASSET_DIR_MARKERS = {".imageset", ".xcassets", ".appiconset", ".colorset", ".launchimage"}
+
+
 def classify_file(path: Path) -> FileType | None:
     ext = path.suffix.lower()
     if ext in CODE_EXTENSIONS:
         return FileType.CODE
     if ext in PAPER_EXTENSIONS:
+        # PDFs inside Xcode asset catalogs are vector icons, not papers
+        if any(part.endswith(tuple(_ASSET_DIR_MARKERS)) for part in path.parts):
+            return None
         return FileType.PAPER
     if ext in IMAGE_EXTENSIONS:
         return FileType.IMAGE
@@ -293,7 +299,7 @@ def _is_ignored(path: Path, root: Path, patterns: list[str]) -> bool:
     return False
 
 
-def detect(root: Path) -> dict:
+def detect(root: Path, *, follow_symlinks: bool = False) -> dict:
     files: dict[FileType, list[str]] = {
         FileType.CODE: [],
         FileType.DOCUMENT: [],
@@ -316,8 +322,14 @@ def detect(root: Path) -> dict:
 
     for scan_root in scan_paths:
         in_memory_tree = memory_dir.exists() and str(scan_root).startswith(str(memory_dir))
-        for dirpath, dirnames, filenames in os.walk(scan_root, followlinks=False):
+        for dirpath, dirnames, filenames in os.walk(scan_root, followlinks=follow_symlinks):
             dp = Path(dirpath)
+            if follow_symlinks and os.path.islink(dirpath):
+                real = os.path.realpath(dirpath)
+                parent_real = os.path.realpath(os.path.dirname(dirpath))
+                if parent_real == real or parent_real.startswith(real + os.sep):
+                    dirnames.clear()
+                    continue
             if not in_memory_tree:
                 # Prune noise dirs in-place so os.walk never descends into them
                 dirnames[:] = [

@@ -1,5 +1,6 @@
 # write graph to HTML, JSON, SVG, GraphML, Obsidian vault, and Neo4j Cypher
 from __future__ import annotations
+import html as _html
 import json
 import math
 import re
@@ -109,6 +110,11 @@ const RAW_NODES = {nodes_json};
 const RAW_EDGES = {edges_json};
 const LEGEND = {legend_json};
 
+// HTML-escape helper — prevents XSS when injecting graph data into innerHTML
+function esc(s) {{
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}}
+
 // Build vis datasets
 const nodesDS = new vis.DataSet(RAW_NODES.map(n => ({{
   id: n.id, label: n.label, color: n.color, size: n.size,
@@ -164,13 +170,13 @@ function showInfo(nodeId) {{
   const neighborItems = neighborIds.map(nid => {{
     const nb = nodesDS.get(nid);
     const color = nb ? nb.color.background : '#555';
-    return `<span class="neighbor-link" style="border-left-color:${{color}}" onclick="focusNode('${{nid}}')">${{nb ? nb.label : nid}}</span>`;
+    return `<span class="neighbor-link" style="border-left-color:${{esc(color)}}" onclick="focusNode(${{JSON.stringify(nid)}})">${{esc(nb ? nb.label : nid)}}</span>`;
   }}).join('');
   document.getElementById('info-content').innerHTML = `
-    <div class="field"><b>${{n.label}}</b></div>
-    <div class="field">Type: ${{n._file_type || 'unknown'}}</div>
-    <div class="field">Community: ${{n._community_name}}</div>
-    <div class="field">Source: ${{n._source_file || '-'}}</div>
+    <div class="field"><b>${{esc(n.label)}}</b></div>
+    <div class="field">Type: ${{esc(n._file_type || 'unknown')}}</div>
+    <div class="field">Community: ${{esc(n._community_name)}}</div>
+    <div class="field">Source: ${{esc(n._source_file || '-')}}</div>
     <div class="field">Degree: ${{n._degree}}</div>
     ${{neighborIds.length ? `<div class="field" style="margin-top:8px;color:#aaa;font-size:11px">Neighbors (${{neighborIds.length}})</div><div id="neighbors-list">${{neighborItems}}</div>` : ''}}
   `;
@@ -182,9 +188,28 @@ function focusNode(nodeId) {{
   showInfo(nodeId);
 }}
 
+// Track hovered node — hover detection is more reliable than click params
+let hoveredNodeId = null;
+network.on('hoverNode', params => {{
+  hoveredNodeId = params.node;
+  container.style.cursor = 'pointer';
+}});
+network.on('blurNode', () => {{
+  hoveredNodeId = null;
+  container.style.cursor = 'default';
+}});
+container.addEventListener('click', () => {{
+  if (hoveredNodeId !== null) {{
+    showInfo(hoveredNodeId);
+    network.selectNodes([hoveredNodeId]);
+  }}
+}});
 network.on('click', params => {{
-  if (params.nodes.length > 0) showInfo(params.nodes[0]);
-  else document.getElementById('info-content').innerHTML = '<span class="empty">Click a node to inspect it</span>';
+  if (params.nodes.length > 0) {{
+    showInfo(params.nodes[0]);
+  }} else if (hoveredNodeId === null) {{
+    document.getElementById('info-content').innerHTML = '<span class="empty">Click a node to inspect it</span>';
+  }}
 }});
 
 const searchInput = document.getElementById('search');
@@ -281,7 +306,8 @@ def to_cypher(G: nx.Graph, output_path: str) -> None:
     for node_id, data in G.nodes(data=True):
         label = _cypher_escape(data.get("label", node_id))
         node_id_esc = _cypher_escape(node_id)
-        ftype = re.sub(r"[^A-Za-z0-9_]", "", data.get("file_type", "unknown").capitalize()) or "Entity"
+        _ft = re.sub(r"[^A-Za-z0-9_]", "", data.get("file_type", "unknown").capitalize())
+        ftype = (_ft if _ft and _ft[0].isalpha() else "Entity")
         lines.append(f"MERGE (n:{ftype} {{id: '{node_id_esc}', label: '{label}'}});")
     lines.append("")
     for u, v, data in G.edges(data=True):
@@ -335,7 +361,7 @@ def to_html(
             "color": {"background": color, "border": color, "highlight": {"background": "#ffffff", "border": color}},
             "size": round(size, 1),
             "font": {"size": font_size, "color": "#ffffff"},
-            "title": f"{label}",
+            "title": _html.escape(label),
             "community": cid,
             "community_name": sanitize_label((community_labels or {}).get(cid, f"Community {cid}")),
             "source_file": sanitize_label(data.get("source_file", "")),
@@ -352,7 +378,7 @@ def to_html(
             "from": u,
             "to": v,
             "label": relation,
-            "title": f"{relation} [{confidence}]",
+            "title": _html.escape(f"{relation} [{confidence}]"),
             "dashes": confidence != "EXTRACTED",
             "width": 2 if confidence == "EXTRACTED" else 1,
             "color": {"opacity": 0.7 if confidence == "EXTRACTED" else 0.35},
@@ -363,7 +389,7 @@ def to_html(
     legend_data = []
     for cid in sorted((community_labels or {}).keys()):
         color = COMMUNITY_COLORS[cid % len(COMMUNITY_COLORS)]
-        lbl = (community_labels or {}).get(cid, f"Community {cid}")
+        lbl = _html.escape(sanitize_label((community_labels or {}).get(cid, f"Community {cid}")))
         n = len(communities.get(cid, []))
         legend_data.append({"cid": cid, "color": color, "label": lbl, "count": n})
 
@@ -371,7 +397,7 @@ def to_html(
     edges_json = json.dumps(vis_edges)
     legend_json = json.dumps(legend_data)
     hyperedges_json = json.dumps(getattr(G, "graph", {}).get("hyperedges", []))
-    title = sanitize_label(str(output_path))
+    title = _html.escape(sanitize_label(str(output_path)))
     stats = f"{G.number_of_nodes()} nodes &middot; {G.number_of_edges()} edges &middot; {len(communities)} communities"
 
     html = f"""<!DOCTYPE html>

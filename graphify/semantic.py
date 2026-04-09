@@ -137,7 +137,10 @@ def load_semantic_index(graph_path: str | Path) -> SemanticIndex | None:
     nodes = json.loads(paths["nodes"].read_text(encoding="utf-8"))
     embeddings = np.load(paths["embeddings"])
     meta = json.loads(paths["meta"].read_text(encoding="utf-8"))
+    current_hash = graph_content_hash(graph_path)
     if meta.get("version") != _SEMANTIC_INDEX_VERSION:
+        return None
+    if meta.get("graph_sha256") != current_hash:
         return None
     if len(nodes) != len(embeddings):
         return None
@@ -194,7 +197,7 @@ def semantic_search(
     if index is None:
         raise FileNotFoundError("semantic index not found. Build it first.")
     if backend is None:
-        backend = SentenceTransformerBackend(model_name=model_name)
+        backend = SentenceTransformerBackend(model_name=index.meta.get("model_name") or model_name or _DEFAULT_MODEL_NAME)
     query_embedding = _normalize_rows(np.asarray(backend.encode([query]), dtype=np.float32))
     if query_embedding.size == 0 or index.embeddings.size == 0:
         return []
