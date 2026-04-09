@@ -1,5 +1,6 @@
 """Tests for serve.py - MCP graph query helpers (no mcp package required)."""
 import json
+from unittest.mock import patch
 import pytest
 import networkx as nx
 from networkx.readwrite import json_graph
@@ -80,6 +81,32 @@ def test_hybrid_seed_nodes_keyword_only(tmp_path):
     seeds = _hybrid_seed_nodes(G, str(graph_file), "extract")
     assert seeds[0]["source"] == "keyword"
     assert seeds[0]["id"] == "n1"
+
+
+def test_hybrid_seed_nodes_reuses_loaded_index(tmp_path):
+    G = _make_graph()
+    graph_file = tmp_path / "graph.json"
+    graph_file.write_text(json.dumps(json_graph.node_link_data(G, edges="links")))
+    fake_index = object()
+    with patch("graphify.serve.load_semantic_index", return_value=fake_index), patch(
+        "graphify.serve.semantic_search",
+        return_value=[{"id": "n1", "score": 0.9}],
+    ) as mock_search:
+        seeds = _hybrid_seed_nodes(G, str(graph_file), "extract")
+    assert seeds
+    assert mock_search.call_args.kwargs["index"] is fake_index
+
+
+def test_hybrid_seed_nodes_only_swallows_expected_semantic_errors(tmp_path):
+    G = _make_graph()
+    graph_file = tmp_path / "graph.json"
+    graph_file.write_text(json.dumps(json_graph.node_link_data(G, edges="links")))
+    with patch("graphify.serve.load_semantic_index", return_value=object()), patch(
+        "graphify.serve.semantic_search",
+        side_effect=RuntimeError("unexpected bug"),
+    ):
+        with pytest.raises(RuntimeError):
+            _hybrid_seed_nodes(G, str(graph_file), "extract")
 
 
 # --- _bfs ---

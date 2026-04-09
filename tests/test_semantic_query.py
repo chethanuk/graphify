@@ -75,6 +75,28 @@ def test_semantic_search_returns_best_match(tmp_path):
     assert results[0]["id"] == "auth"
 
 
+def test_semantic_search_uses_preloaded_index(tmp_path):
+    G = _make_graph()
+    graph_file = tmp_path / "graph.json"
+    data = json_graph.node_link_data(G, edges="links")
+    graph_file.write_text(json.dumps(data), encoding="utf-8")
+
+    backend = FakeBackend(
+        {
+            "Authentication Flow | auth.py | code": [1.0, 0.0],
+            "Login Handler | login.py | code": [0.9, 0.1],
+            "UI Renderer | ui.py | code": [0.0, 1.0],
+            "how sign in works": [0.95, 0.05],
+        }
+    )
+    build_semantic_index(graph_file, backend=backend, model_name="fake")
+    index = load_semantic_index(graph_file)
+
+    assert index is not None
+    results = semantic_search(graph_file, "how sign in works", index=index, backend=backend, model_name="fake")
+    assert results[0]["id"] == "auth"
+
+
 def test_hybrid_seed_nodes_falls_back_to_semantic(tmp_path):
     G = _make_graph()
     graph_file = tmp_path / "graph.json"

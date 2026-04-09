@@ -15,7 +15,7 @@ def _estimate_tokens(text: str) -> int:
 
 
 def _query_subgraph_tokens(G: nx.Graph, question: str, depth: int = 3) -> int:
-    """Run BFS from hybrid keyword/semantic seed nodes and return estimated tokens."""
+    """Run BFS from keyword seed nodes and return estimated tokens."""
     terms = [t.lower() for t in question.split() if len(t) > 2]
     scored = []
     for nid, data in G.nodes(data=True):
@@ -53,9 +53,7 @@ def _query_subgraph_tokens(G: nx.Graph, question: str, depth: int = 3) -> int:
     return _estimate_tokens("\n".join(lines))
 
 
-def _query_subgraph_tokens_semantic(graph_path: str, question: str, depth: int = 3) -> int:
-    data = json.loads(Path(graph_path).read_text())
-    G = json_graph.node_link_graph(data, edges="links")
+def _query_subgraph_tokens_semantic(G: nx.Graph, graph_path: str, question: str, depth: int = 3) -> int:
     seeds = _hybrid_seed_nodes(G, graph_path, question)
     start_nodes = [seed["id"] for seed in seeds]
     if not start_nodes:
@@ -121,7 +119,7 @@ def run_benchmark(
     qs = questions or _SAMPLE_QUESTIONS
     per_question = []
     for q in qs:
-        qt = _query_subgraph_tokens_semantic(graph_path, q)
+        qt = _query_subgraph_tokens_semantic(G, graph_path, q)
         if qt > 0:
             per_question.append({"question": q, "query_tokens": qt, "reduction": round(corpus_tokens / qt, 1)})
 

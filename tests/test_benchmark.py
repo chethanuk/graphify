@@ -1,6 +1,7 @@
 """Tests for graphify/benchmark.py."""
 from __future__ import annotations
 import json
+from unittest.mock import patch
 import pytest
 import networkx as nx
 from networkx.readwrite import json_graph
@@ -50,7 +51,14 @@ def test_query_semantic_returns_zero_without_index(tmp_path):
     G = _make_graph()
     graph_file = tmp_path / "graph.json"
     _write_graph(G, graph_file)
-    assert _query_subgraph_tokens_semantic(str(graph_file), "xyzzy plugh zorkmid") == 0
+    assert _query_subgraph_tokens_semantic(G, str(graph_file), "xyzzy plugh zorkmid") == 0
+
+def test_query_semantic_reuses_loaded_graph(tmp_path):
+    G = _make_graph()
+    graph_file = tmp_path / "graph.json"
+    _write_graph(G, graph_file)
+    with patch("graphify.benchmark.Path.read_text", side_effect=AssertionError("graph file should not be re-read")):
+        assert _query_subgraph_tokens_semantic(G, str(graph_file), "authentication") > 0
 
 
 # --- run_benchmark ---

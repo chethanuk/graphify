@@ -89,21 +89,11 @@ def semantic_text_for_node(node_id: str, data: dict) -> str:
 
 def semantic_candidate_nodes(G) -> list[dict]:
     items: list[dict] = []
-    seen_texts: set[tuple[str, str, str, str]] = set()
     for node_id, data in G.nodes(data=True):
         label = str(data.get("label", "")).strip()
         if not label:
             continue
         text = semantic_text_for_node(node_id, data)
-        key = (
-            label.lower(),
-            str(data.get("source_file", "")).lower(),
-            str(data.get("source_location", "")).lower(),
-            str(node_id).lower(),
-        )
-        if key in seen_texts:
-            continue
-        seen_texts.add(key)
         items.append(
             {
                 "id": node_id,
@@ -188,12 +178,14 @@ def build_semantic_index(
 def semantic_search(
     graph_path: str | Path,
     query: str,
+    index: SemanticIndex | None = None,
     backend: EmbeddingBackend | None = None,
     top_k: int = 5,
     min_score: float = 0.2,
     model_name: str = _DEFAULT_MODEL_NAME,
 ) -> list[dict]:
-    index = load_semantic_index(graph_path)
+    if index is None:
+        index = load_semantic_index(graph_path)
     if index is None:
         raise FileNotFoundError("semantic index not found. Build it first.")
     if backend is None:

@@ -72,8 +72,11 @@ def _hybrid_seed_nodes(
     index = load_semantic_index(graph_path)
     if index is not None:
         try:
-            semantic_ranked = [(float(match["score"]), match["id"]) for match in semantic_search(graph_path, question, top_k=semantic_limit)]
-        except Exception:
+            semantic_ranked = [
+                (float(match["score"]), match["id"])
+                for match in semantic_search(graph_path, question, index=index, top_k=semantic_limit)
+            ]
+        except (FileNotFoundError, ImportError, ValueError):
             semantic_ranked = []
         if semantic_ranked:
             rankings.append(("semantic", semantic_ranked))
